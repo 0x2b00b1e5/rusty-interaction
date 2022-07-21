@@ -91,6 +91,12 @@ pub enum InteractionType {
 
     /// A message component
     MessageComponent = 3,
+
+    /// An autocomplete interaction
+    ApplicationCommandAutocomplete = 4,
+
+    /// A response coming from a modal.
+    ModalSubmit = 5,
 }
 
 #[serde_as]
@@ -318,6 +324,28 @@ pub enum InteractionResponseType {
 
     /// For components, edit the message the component was attached to
     UpdateMessage = 7,
+
+    /// For responding to autocomplete interactions
+    ApplicationCommandAutocompleteResult = 8,
+
+    /// Respond with a Popup [`Modal`]
+    Modal = 9,
+}
+
+impl From<super::modal::Modal> for InteractionResponse {
+    fn from(m: super::modal::Modal) -> InteractionResponse {
+        let r = InteractionResponse {
+            r#type: InteractionResponseType::Modal,
+            data: Some(InteractionApplicationCommandCallbackData {
+                custom_id: Some(m.get_custom_id()),
+                title: Some(m.get_title()),
+                components: Some(m.get_components()),
+                ..Default::default()
+            }),
+        };
+
+        r
+    }
 }
 
 #[serde_as]
@@ -331,6 +359,8 @@ pub struct InteractionApplicationCommandCallbackData {
     allowed_mentions: Option<AllowedMentions>,
     flags: Option<u8>,
     components: Option<Vec<MessageComponent>>,
+    custom_id: Option<String>,
+    title: Option<String>,
 }
 
 impl InteractionApplicationCommandCallbackData {
@@ -640,6 +670,12 @@ impl Context {
         }
 
         b
+    }
+
+    /// Respond to an [`Interaction`] by sending a [`Modal`]
+    /// Note that this **does not** return an [`InteractionResponseBuilder`], but an [`InteractionResponse`]
+    pub fn respond_with_modal(&self, m: super::modal::Modal) -> InteractionResponse {
+        m.into()
     }
 
     /// Edit the original interaction response

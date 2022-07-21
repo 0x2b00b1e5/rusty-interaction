@@ -8,5 +8,6 @@ members = [
     "e6_components",    
     "e7_embeds",
     "e8_managing_commands",
-    "e9_accessing_other_data"
+    "e9_accessing_other_data",
+    "e10_modals"
 ]

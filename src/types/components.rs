@@ -1,3 +1,4 @@
+//use std::default::default;
 #[cfg(feature = "builder")]
 use std::error;
 #[cfg(feature = "builder")]
@@ -20,7 +21,7 @@ use serde_with::*;
 pub struct MessageComponent {
     /// Type of component
     r#type: ComponentType,
-    style: Option<ComponentButtonStyle>,
+    style: Option<ComponentStyle>,
     label: Option<String>,
     emoji: Option<PartialEmoji>,
     custom_id: Option<String>,
@@ -32,6 +33,7 @@ pub struct MessageComponent {
     max_values: Option<u8>,
     components: Option<Vec<MessageComponent>>,
 
+    // Text input specific
     min_length: Option<u16>,
     max_length: Option<u16>,
     required: Option<bool>,
@@ -127,7 +129,6 @@ pub struct ComponentSelectMenu {
     max_values: u8,
 }
 
-#[cfg(feature = "builder")]
 impl Default for ComponentSelectMenu {
     fn default() -> Self {
         Self {
@@ -142,7 +143,6 @@ impl Default for ComponentSelectMenu {
     }
 }
 
-#[cfg(feature = "builder")]
 impl From<ComponentSelectMenu> for MessageComponent {
     fn from(t: ComponentSelectMenu) -> Self {
         MessageComponent {
@@ -184,9 +184,13 @@ impl Default for ComponentButton {
 #[cfg(feature = "builder")]
 impl From<ComponentButton> for MessageComponent {
     fn from(t: ComponentButton) -> Self {
+        let mut a: Option<u8> = None;
+        if let Some(b) = t.style{
+            a = Some(b.into());
+        }
         MessageComponent {
             r#type: ComponentType::Button,
-            style: t.style,
+            style: a,
             label: t.label,
             emoji: t.emoji,
             custom_id: t.custom_id,
@@ -197,6 +201,8 @@ impl From<ComponentButton> for MessageComponent {
     }
 }
 
+/// Alias for generic styling
+pub type ComponentStyle = u8;
 #[derive(Clone, Serialize_repr, Deserialize_repr, PartialEq, Debug)]
 #[repr(u8)]
 #[non_exhaustive]
@@ -212,6 +218,12 @@ pub enum ComponentButtonStyle {
     Danger = 4,
     /// grey with outgoing link icon
     Link = 5,
+}
+
+impl From<ComponentButtonStyle> for ComponentStyle{
+    fn from(a: ComponentButtonStyle) -> Self {
+        a as ComponentStyle
+    }
 }
 
 /// Builder for creating a Component Action Row
@@ -232,6 +244,19 @@ impl Builder<MessageComponent> for ComponentRowBuilder {
 
 #[cfg(feature = "builder")]
 impl ComponentRowBuilder {
+    /// Add a component to this row
+    pub fn add_component(mut self, component: impl Into<MessageComponent>) -> Self{
+        match self.obj.components.as_mut() {
+            None => {
+                self.obj.components = Some(vec![component.into()]);
+            }
+            Some(c) => {
+                c.push(component.into());
+            }
+        }
+        self
+    }
+
     /// Add a button
     pub fn add_button(mut self, button: ComponentButton) -> Self {
         match self.obj.components.as_mut() {
@@ -253,6 +278,18 @@ impl ComponentRowBuilder {
             }
             Some(c) => {
                 c.push(menu.into());
+            }
+        }
+        self
+    }
+    /// Add a textbox to the row
+    pub fn add_textbox(mut self, textbox: ComponentTextBox) -> Self{
+        match self.obj.components.as_mut(){
+            None => {
+                self.obj.components = Some(vec![textbox.into()]);
+            }
+            Some(c) =>{
+                c.push(textbox.into());
             }
         }
         self
@@ -493,5 +530,195 @@ impl Builder<ComponentSelectMenu> for ComponentSelectMenuBuilder {
             return Err(ComponentSelectMenuBuilderError::Over25MaxValues);
         }
         Ok(self.obj)
+    }
+}
+
+
+#[derive(Clone, Debug, Default)]
+pub enum ComponentTextBoxStyle {
+    #[default] Short = 1, 
+    Paragraph = 2,
+}
+
+impl From<ComponentTextBoxStyle> for ComponentStyle{
+    fn from(a: ComponentTextBoxStyle) -> Self {
+        a as ComponentStyle
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+/// A textbox component, where users can put text in
+pub struct ComponentTextBox {
+    placeholder: Option<String>,
+    custom_id: String,
+    label: String,
+    style: ComponentTextBoxStyle,
+    min_length: Option<u16>,
+    max_length: Option<u16>,
+    required: Option<bool>,
+}
+
+
+
+impl From<ComponentTextBox> for MessageComponent {
+    fn from(t: ComponentTextBox) -> Self {
+        MessageComponent {
+            r#type: ComponentType::TextInput,
+            label: Some(t.label),
+            custom_id: Some(t.custom_id),
+            style: Some(t.style.into()),
+            min_length: t.min_length,
+            max_length: t.max_length,
+            required: t.required,
+            ..Default::default()
+        }
+    }
+}
+
+#[cfg(feature = "builder")]
+#[derive(Clone, Debug, Default)]
+/// Build a textbox component
+pub struct ComponentTextBoxBuilder {
+    obj: ComponentTextBox,
+}
+
+#[cfg(feature = "builder")]
+impl ComponentTextBoxBuilder {
+
+    /// Sets the custom ID of this text thing. **MANDATORY**
+    pub fn custom_id(mut self, id: impl Into<String>) -> Self{
+        let pid = id.into();
+
+        self.obj.custom_id = pid;
+        self
+    }
+
+    /// Set the textbox label. **MANDATORY**
+    pub fn label(mut self, label: impl Into<String>) -> Self{
+        self.obj.label = label.into();
+        self
+    }
+
+    /// Sets the style of this textbox. See [`ComponentTextBoxStyle`] for types
+    pub fn style(mut self, style: ComponentTextBoxStyle) -> Self{
+        self.obj.style = style;
+        self
+    }
+
+    /// Sets the placeholder
+    pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
+        let placeholder = placeholder.into();
+        self.obj.placeholder = Some(placeholder);
+        self
+    }
+    /// Sets the minimum amount of characters that need to be inserted
+    pub fn min_length(mut self, minimum_length: u16) -> Self {
+        if minimum_length < 1 || minimum_length > 4000 {
+            warn!("Minimum length for this text box exceeds the limits, ignoring");
+            return self;
+        }
+
+        self.obj.min_length = Some(minimum_length);
+        self
+    }
+
+    /// Sets the maximum amount of characters that may be inserted
+    ///
+    /// **The maximum settable length is 4000 characters**
+    pub fn max_length(mut self, maximum_length: u16) -> Self {
+        if maximum_length < 2 || maximum_length > 4000 {
+            warn!("Maximum length for this text box exceeds the limits, ignoring");
+            return self;
+        }
+
+        self.obj.max_length = Some(maximum_length);
+        self
+    }
+
+    /// Sets if this textbox is required to fill
+    pub fn required(mut self, is_required: bool) -> Self {
+        self.obj.required = Some(is_required);
+        self
+    }
+}
+
+#[cfg(feature = "builder")]
+impl Builder<MessageComponent> for ComponentTextBoxBuilder {
+    type Error = ComponentTextBoxBuilderError;
+
+    fn build(self) -> Result<MessageComponent, Self::Error> {
+
+        if self.obj.custom_id.is_empty() {
+            return Err(ComponentTextBoxBuilderError::MissingCustomId);
+        }
+        if self.obj.label.is_empty(){
+            return Err(ComponentTextBoxBuilderError::MissingLabel);
+        }
+        if let Some(ml) = self.obj.min_length.as_ref() {
+            if ml > &4000 {
+                return Err(ComponentTextBoxBuilderError::MinimumLengthTooHigh);
+            }
+        }
+        if let Some(ml) = self.obj.max_length.as_ref() {
+            if ml < &1 {
+                return Err(ComponentTextBoxBuilderError::MaximumLengthTooLow);
+            }
+            if ml > &4000 {
+                return Err(ComponentTextBoxBuilderError::MaximumLengthTooHigh);
+            }
+            if let Some(minl) = self.obj.min_length.as_ref() {
+                if minl > ml {
+                    return Err(ComponentTextBoxBuilderError::MinimumGreaterThanMaximum);
+                }
+            }
+        }
+        Ok(self.obj.into())
+    }
+}
+
+#[cfg(feature = "builder")]
+#[derive(Clone, Debug)]
+/// Errors that arise when building the textbox component.
+pub enum ComponentTextBoxBuilderError {
+    /// The required custom id isn't set!
+    MissingCustomId,
+    /// Missing a label
+    MissingLabel,
+    /// The minimum length is set too high (> 4000)
+    MinimumLengthTooHigh,
+    /// The maximum length is set too high (> 4000)
+    MaximumLengthTooHigh,
+    /// The maximum length is set too low (< 1)
+    MaximumLengthTooLow,
+    /// The minimum required length is set to a higher value than the set maximum.
+    MinimumGreaterThanMaximum,
+}
+
+#[cfg(feature = "builder")]
+impl error::Error for ComponentTextBoxBuilderError {}
+
+#[cfg(feature = "builder")]
+impl Display for ComponentTextBoxBuilderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ComponentTextBoxBuilderError::MinimumLengthTooHigh => {
+                write!(f, "Minimum length exceeded 4000 characters")
+            }
+            ComponentTextBoxBuilderError::MaximumLengthTooHigh => {
+                write!(f, "Maximum length exceeded 4000 characters")
+            }
+            ComponentTextBoxBuilderError::MaximumLengthTooLow => {
+                write!(f, "Maximum length is below 1")
+            }
+            ComponentTextBoxBuilderError::MinimumGreaterThanMaximum => {
+                write!(f, "The minimum length is greater than the maximum length")
+            }
+            ComponentTextBoxBuilderError::MissingCustomId => {
+                write!(f, "The required custom id has not been set for this text box")
+            }
+            ComponentTextBoxBuilderError::MissingLabel => {
+                write!(f, "The required label is not set!")
+            }
+        }
     }
 }

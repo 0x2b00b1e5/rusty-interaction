@@ -177,7 +177,7 @@ impl InteractionHandler {
         self.data.insert(data);
     }
     /// Binds an async function to a **global** command.
-    /// Your function must take a [`Context`] as an argument and must return a [`InteractionResponse`].
+    /// Your function must take a [`Context`] and optionally an [`InteractionHandler`] as an argument and must return a [`InteractionResponse`].
     /// Make sure to use the `#[slash_command]` procedural macro to make it usable for the handler.
     ///
     /// Like:
@@ -222,7 +222,7 @@ impl InteractionHandler {
     }
 
     /// Binds an async function to a **component**.
-    /// Your function must take a [`Context`] as an argument and must return a [`InteractionResponse`].
+    /// Your function must take a [`Context`] and optionally an [`InteractionHandler`] as an argument and must return a [`InteractionResponse`].
     /// Use the `#[component_handler]` procedural macro for your own convinence.eprintln!
     ///
     /// # Example
@@ -465,6 +465,7 @@ impl InteractionHandler {
         match serde_json::from_str::<Interaction>(&body) {
             Err(e) => {
                 // It's probably bad on our end if this code is reached.
+                // Could be that new features were implemented and breaks code
                 error!("Failed to decode interaction! Error: {}", e);
                 debug!("Body sent: {}", body);
                 return ERROR_RESPONSE!(400, format!("Bad body: {}", e));
@@ -545,6 +546,14 @@ impl InteractionHandler {
                             );
                             ERROR_RESPONSE!(501, "No associated handler found")
                         }
+                    }
+                    InteractionType::ApplicationCommandAutocomplete => {
+                        //TODO: Implement autocomplete stuff
+                        unimplemented!();
+                    }
+                    InteractionType::ModalSubmit => {
+                        //TODO: Implement Modal submit event
+                        unimplemented!();
                     }
                 }
             }
